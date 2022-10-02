@@ -13,7 +13,7 @@
         </b-col>
       </b-row>
       <chart-portfolio-vulnerabilities ref="chartPortfolioVulnerabilities" chartId="chartPortfolioVulnerabilities" class="chart-wrapper" style="height:200px;margin-top:40px;" :height="200"></chart-portfolio-vulnerabilities>
-      <div slot="footer">
+      <template v-slot:footer>
         <b-row class="text-center">
           <b-col class="mb-sm-2 mb-0">
             <div class="text-muted">{{ $t('message.vulnerable_projects') }}</div>
@@ -36,7 +36,7 @@
             <b-progress height={} class="progress-xs mt-2" :precision="1" variant="danger" v-bind:value="auditedFindingPercent"></b-progress>
           </b-col>
         </b-row>
-      </div>
+      </template>
     </b-card>
 
     <b-row>

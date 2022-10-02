@@ -12,7 +12,7 @@
         </b-col>
       </b-row>
       <chart-portfolio-vulnerabilities ref="chartServiceVulnerabilities" chartId="chartServiceVulnerabilities" class="chart-wrapper" style="height:200px;margin-top:40px;" :height="200"></chart-portfolio-vulnerabilities>
-      <div slot="footer">
+      <template v-slot:footer>
         <b-row>
           <b-col sm="12" lg="4">
             <b-row>
@@ -63,7 +63,7 @@
             </b-row>
           </b-col>
         </b-row>
-      </div>
+      </template>
     </b-card>
     <b-row>
       <b-col sm="6">

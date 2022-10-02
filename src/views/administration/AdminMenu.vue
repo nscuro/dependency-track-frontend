@@ -2,9 +2,9 @@
   <div>
 
     <b-card no-body class="admin-menu" v-for="section in menu" v-bind:key="section.id">
-      <div slot="header" v-if="isPermitted(section.permission)" v-b-toggle="section.id" style="cursor:pointer;">
+      <template v-slot:header v-if="isPermitted(section.permission)" v-b-toggle="section.id" style="cursor:pointer;">
         <i class="fa fa-align-justify"></i><strong>&nbsp;&nbsp;{{ section.name }}</strong>
-      </div>
+      </template>
       <b-collapse v-if="isPermitted(section.permission)" :id="section.id" visible accordion="admin-accordion" role="tabpanel">
         <div class="list-group" id="list-tab" role="tablist">
           <a v-for="item in section.children" class="list-group-item list-group-item-action" data-toggle="list" role="tab"
