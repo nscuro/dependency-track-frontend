@@ -1,5 +1,5 @@
 <template>
-  <b-button :pressed.sync="toggle" :variant="variant" v-on:click="$emit('toggle')"><i :class="iconClass"></i> {{ label }}</b-button>
+  <b-button v-model="toggle" :variant="variant" v-on:click="$emit('toggle')"><i :class="iconClass"></i> {{ label }}</b-button>
 </template>
 
 <script>

@@ -4,11 +4,11 @@
       <img alt="GitHub logo" src="@/assets/img/github-logo.svg" width="65"/>
       <hr/>
       <c-switch
+        v-bind="labelIcon"
         :disabled="!this.vulnsourceEnabled && !this.apitoken"
         color="primary"
         id="vulnsourceEnabled"
         label
-        v-bind="labelIcon"
         v-model="vulnsourceEnabled"
       />
       {{$t('admin.vulnsource_github_advisories_enable')}}

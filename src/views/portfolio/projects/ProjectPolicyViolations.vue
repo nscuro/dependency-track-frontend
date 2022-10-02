@@ -5,7 +5,7 @@
     dropdown for version is changes, the table will not update. For whatever reason, adding the toolbar fixes it.
     -->
     <div id="violationsToolbar" class="bs-table-custom-toolbar">
-      <c-switch style="margin-left:1rem; margin-right:.5rem" id="showSuppressedViolations" color="primary" v-model="showSuppressedViolations" label v-bind="labelIcon" /><span class="text-muted">{{ $t('message.show_suppressed_violations') }}</span>
+      <c-switch v-bind="labelIcon" style="margin-left:1rem; margin-right:.5rem" id="showSuppressedViolations" color="primary" v-model="showSuppressedViolations" label /><span class="text-muted">{{ $t('message.show_suppressed_violations') }}</span>
     </div>
 
     <bootstrap-table

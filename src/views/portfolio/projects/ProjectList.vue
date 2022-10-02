@@ -5,7 +5,7 @@
       <b-button size="md" variant="outline-primary" v-b-modal.projectCreateProjectModal v-permission="PERMISSIONS.PORTFOLIO_MANAGEMENT">
         <span class="fa fa-plus"></span> {{ $t('message.create_project') }}
       </b-button>
-      <c-switch style="margin-left:1rem; margin-right:.5rem" id="showInactiveProjects" color="primary" v-model="showInactiveProjects" label v-bind="labelIcon" /><span class="text-muted">{{ $t('message.show_inactive_projects') }}</span>
+      <c-switch v-bind="labelIcon" style="margin-left:1rem; margin-right:.5rem" id="showInactiveProjects" color="primary" v-model="showInactiveProjects" label /><span class="text-muted">{{ $t('message.show_inactive_projects') }}</span>
     </div>
     <bootstrap-table
       ref="table"

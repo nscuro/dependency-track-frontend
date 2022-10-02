@@ -25,9 +25,9 @@
                                   :state="verifyPasswordState()"
                                   :label="$t('admin.password_confirm')"
                                   :feedback-text="$t('admin.required_confirmPassword')" />
-        <c-switch id="forcePasswordChange" color="primary" v-model="forcePasswordChange" label v-bind="labelIcon" />{{$t('admin.change_password_next_login')}}
+        <c-switch v-bind="labelIcon" id="forcePasswordChange" color="primary" v-model="forcePasswordChange" label />{{$t('admin.change_password_next_login')}}
         <br/>
-        <c-switch id="nonExpiryPassword" color="primary" v-model="nonExpiryPassword" label v-bind="labelIcon" />{{$t('admin.password_never_expires')}}
+        <c-switch v-bind="labelIcon" id="nonExpiryPassword" color="primary" v-model="nonExpiryPassword" label />{{$t('admin.password_never_expires')}}
       </b-col>
     </b-row>
     <template v-slot:modal-footer="{ cancel }">

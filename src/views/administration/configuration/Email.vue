@@ -1,7 +1,7 @@
 <template>
   <b-card no-body :header="header">
     <b-card-body>
-      <c-switch id="email-enabled" color="primary" v-model="isEmailEnabled" label v-bind="labelIcon" />{{$t('admin.enable_email')}}
+      <c-switch v-bind="labelIcon" id="email-enabled" color="primary" v-model="isEmailEnabled" label />{{$t('admin.enable_email')}}
       <b-validated-input-group-form-input
         id="email-from-address"
         :label="$t('admin.email_from_address')"
@@ -46,9 +46,9 @@
         lazy="true"
         conceal="true"
       />
-      <c-switch id="email-smtp-enable-ssltls" color="primary" v-model="isSmtpSslTlsEnabled" label v-bind="labelIcon" />{{$t('admin.email_enable_ssltls')}}
+      <c-switch v-bind="labelIcon" id="email-smtp-enable-ssltls" color="primary" v-model="isSmtpSslTlsEnabled" label />{{$t('admin.email_enable_ssltls')}}
       <br/>
-      <c-switch id="email-smtp-trust-cert" color="primary" v-model="isEmailSmtpTrustCertEnabled" label v-bind="labelIcon" />{{$t('admin.email_trust_cert')}}
+      <c-switch v-bind="labelIcon" id="email-smtp-trust-cert" color="primary" v-model="isEmailSmtpTrustCertEnabled" label />{{$t('admin.email_trust_cert')}}
     </b-card-body>
     <b-card-footer>
       <b-button size="md" class="px-4" variant="outline-primary" @click="saveChanges">{{ $t('message.update') }}</b-button>

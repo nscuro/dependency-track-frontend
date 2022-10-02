@@ -1,13 +1,13 @@
 <template>
   <b-card no-body :header="header">
     <b-card-body>
-      <c-switch id="scannerEnabled" color="primary" v-model="scannerEnabled" label v-bind="labelIcon" />{{$t('admin.analyzer_internal_enable')}}
+      <c-switch v-bind="labelIcon" id="scannerEnabled" color="primary" v-model="scannerEnabled" label />{{$t('admin.analyzer_internal_enable')}}
       <br/>
-      <c-switch id="scannerCpeFuzzyEnableInput" color="primary" v-model="scannerCpeFuzzyEnableInput" label v-bind="labelIcon" />{{$t('admin.analyzer_internal_fuzzy_enable')}}
+      <c-switch v-bind="labelIcon" id="scannerCpeFuzzyEnableInput" color="primary" v-model="scannerCpeFuzzyEnableInput" label />{{$t('admin.analyzer_internal_fuzzy_enable')}}
       <br/>
-      <c-switch id="scannerCpeFuzzyExcludePurlInput" color="primary" v-model="scannerCpeFuzzyExcludePurlInput" label v-bind="labelIcon" />{{$t('admin.analyzer_internal_fuzzy_exclude_purl')}}
+      <c-switch v-bind="labelIcon" id="scannerCpeFuzzyExcludePurlInput" color="primary" v-model="scannerCpeFuzzyExcludePurlInput" label />{{$t('admin.analyzer_internal_fuzzy_exclude_purl')}}
       <br/>
-      <c-switch id="scannerCpeFuzzyExcludeInternalInput" color="primary" v-model="scannerCpeFuzzyExcludeInternalInput" label v-bind="labelIcon" />{{$t('admin.analyzer_internal_fuzzy_exclude_internal')}}
+      <c-switch v-bind="labelIcon" id="scannerCpeFuzzyExcludeInternalInput" color="primary" v-model="scannerCpeFuzzyExcludeInternalInput" label />{{$t('admin.analyzer_internal_fuzzy_exclude_internal')}}
       <hr/>
       {{ $t('admin.analyzer_internal_desc') }}
     </b-card-body>

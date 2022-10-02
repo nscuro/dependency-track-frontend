@@ -5,7 +5,7 @@
     <p>{{ $t('admin.template_override_security_warning') }}</p>
     <p>{{ $t('admin.template_override_restart_needed') }}</p>
     <b-form-group>
-        <c-switch id="template_override" color="primary" v-model="enableDefaultTemplatesOverride" label v-bind="labelIcon"/>
+        <c-switch v-bind="labelIcon" id="template_override" color="primary" v-model="enableDefaultTemplatesOverride" label />
         {{ $t('admin.enable_default_template_override') }}
     </b-form-group>
     <b-validated-input-group-form-input

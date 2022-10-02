@@ -1,7 +1,7 @@
 <template>
   <b-card no-body :header="header">
     <b-card-body>
-      <c-switch id="enabled" color="primary" v-model="enabled" label v-bind="labelIcon" />{{$t('admin.integration_fortify_ssc_enable')}}
+      <c-switch v-bind="labelIcon" id="enabled" color="primary" v-model="enabled" label />{{$t('admin.integration_fortify_ssc_enable')}}
       <b-validated-input-group-form-input
         id="fortify-ssc-cadence"
         :label="$t('admin.synchronization_cadence_minutes')"

@@ -1,8 +1,8 @@
 <template>
   <b-card no-body :header="header">
     <b-card-body>
-      <c-switch id="enabled" color="primary" v-model="enabled" label v-bind="labelIcon" />{{$t('admin.integration_defectdojo_enable')}}
-      <c-switch id="reimport-enabled" color="primary" v-model="reimportEnabled" label v-bind="labelIcon" />{{$t('admin.integration_defectdojo_reimport_enable')}}
+      <c-switch v-bind="labelIcon" id="enabled" color="primary" v-model="enabled" label />{{$t('admin.integration_defectdojo_enable')}}
+      <c-switch v-bind="labelIcon" id="reimport-enabled" color="primary" v-model="reimportEnabled" label />{{$t('admin.integration_defectdojo_reimport_enable')}}
       <b-validated-input-group-form-input
         id="defectdojo-cadence"
         :label="$t('admin.synchronization_cadence_minutes')"

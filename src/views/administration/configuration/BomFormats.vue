@@ -3,7 +3,7 @@
     <b-card-body>
       <p>{{ $t('admin.bom_formats_desc')}}</p>
       <div>
-        <c-switch color="primary" v-model="isCycloneDXEnabled" label v-bind="labelIcon" />{{$t('admin.enable_bom_cyclonedx')}}
+        <c-switch v-bind="labelIcon" color="primary" v-model="isCycloneDXEnabled" label />{{$t('admin.enable_bom_cyclonedx')}}
       </div>
     </b-card-body>
     <b-card-footer>

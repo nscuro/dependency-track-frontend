@@ -2,12 +2,12 @@
   <b-card no-body :header="header">
     <b-card-body>
       <c-switch
+        v-bind="labelIcon"
         :disabled="!this.vulnsourceEnabled && !this.nvdFeedsUrl"
         id="vulnsourceEnabled"
         color="primary"
         v-model="vulnsourceEnabled"
         label
-        v-bind="labelIcon"
       />
       {{$t('admin.vulnsource_nvd_enable')}}
       <b-validated-input-group-form-input

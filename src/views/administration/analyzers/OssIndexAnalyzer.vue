@@ -1,7 +1,7 @@
 <template>
   <b-card no-body :header="header">
     <b-card-body>
-      <c-switch id="scannerEnabled" color="primary" v-model="scannerEnabled" label v-bind="labelIcon" />{{$t('admin.analyzer_ossindex_enable')}}
+      <c-switch v-bind="labelIcon" id="scannerEnabled" color="primary" v-model="scannerEnabled" label />{{$t('admin.analyzer_ossindex_enable')}}
       <b-validated-input-group-form-input
         id="ossindex-username"
         :label="$t('admin.registered_email_address')"

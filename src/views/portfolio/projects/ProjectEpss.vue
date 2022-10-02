@@ -7,7 +7,7 @@
     dropdown for version is changes, the table will not update. For whatever reason, adding the toolbar fixes it.
     -->
     <div id="epssToolbar" class="bs-table-custom-toolbar">
-      <c-switch style="margin-left:1rem; margin-right:.5rem" id="showSuppressedFindings" color="primary" v-model="showSuppressedFindings" label v-bind="labelIcon" /><span class="text-muted">{{ $t('message.show_suppressed_findings') }}</span>
+      <c-switch v-bind="labelIcon" style="margin-left:1rem; margin-right:.5rem" id="showSuppressedFindings" color="primary" v-model="showSuppressedFindings" label /><span class="text-muted">{{ $t('message.show_suppressed_findings') }}</span>
     </div>
 
     <bootstrap-table

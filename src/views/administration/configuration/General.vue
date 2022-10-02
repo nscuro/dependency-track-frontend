@@ -10,7 +10,7 @@
         v-model="baseUrl"
         tooltip="This URL is used to construct links back to Dependency-Track from external systems."
       />
-      <c-switch id="isBadgesEnabled" color="primary" v-model="isBadgesEnabled" label v-bind="labelIcon" />{{$t('admin.enable_svg_badge')}}
+      <c-switch v-bind="labelIcon" id="isBadgesEnabled" color="primary" v-model="isBadgesEnabled" label />{{$t('admin.enable_svg_badge')}}
     </b-card-body>
     <b-card-footer>
       <b-button variant="outline-primary" class="px-4" @click="saveChanges">{{ $t('message.update') }}</b-button>

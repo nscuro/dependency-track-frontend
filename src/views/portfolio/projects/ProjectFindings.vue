@@ -26,7 +26,7 @@
         <b-dropdown-item @click="downloadVex('csaf')" href="#">CSAF</b-dropdown-item>
       </b-dropdown>
       -->
-      <c-switch style="margin-left:1rem; margin-right:.5rem" id="showSuppressedFindings" color="primary" v-model="showSuppressedFindings" label v-bind="labelIcon" /><span class="text-muted">{{ $t('message.show_suppressed_findings') }}</span>
+      <c-switch v-bind="labelIcon" style="margin-left:1rem; margin-right:.5rem" id="showSuppressedFindings" color="primary" v-model="showSuppressedFindings" label /><span class="text-muted">{{ $t('message.show_suppressed_findings') }}</span>
     </div>
 
     <bootstrap-table

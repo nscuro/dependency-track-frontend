@@ -2,7 +2,7 @@
   <b-card no-body :header="header">
     <b-card-body>
       <div id="customToolbar">
-        <c-switch id="isAclEnabled" color="primary" v-model="isAclEnabled" label v-bind="labelIcon" />{{$t('admin.enable_acl')}}
+        <c-switch v-bind="labelIcon" id="isAclEnabled" color="primary" v-model="isAclEnabled" label />{{$t('admin.enable_acl')}}
       </div>
       <bootstrap-table
         ref="table"

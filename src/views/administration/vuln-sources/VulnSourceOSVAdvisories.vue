@@ -4,10 +4,10 @@
       <img alt="OSV logo" src="@/assets/img/osv-logo.png" width="65"/>
       <hr/>
       <c-switch
+        v-bind="labelIcon"
         color="primary"
         id="vulnsourceEnabled"
         label
-        v-bind="labelIcon"
         v-model="vulnsourceEnabled"
         :disabled="enabledEcosystems.length === 0"
       />
