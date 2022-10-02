@@ -1,10 +1,10 @@
 module.exports = {
   presets: [
-    ['@vue/app', {
+    ["@vue/cli-plugin-babel/preset", {
       polyfills: [
-        'es6.array.find',
-        'es6.array.from',
-        'es6.symbol'
+        //'es6.array.find',
+        //'es6.array.from',
+        //'es6.symbol'
       ]
     }],
     ["@babel/preset-env", {
