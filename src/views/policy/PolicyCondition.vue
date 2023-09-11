@@ -25,7 +25,7 @@
 
       </b-col>
       <b-col v-if="subject === 'EXPRESSION'" lg="6">
-        <MonacoEditor id="input-value" v-if="subject === 'EXPRESSION'" v-model="value" v-debounce:1s="saveCondition" :debounce-events="'keyup'"></MonacoEditor>
+        <MonacoEditor id="input-value" v-if="subject === 'EXPRESSION'" v-model="value" :markers="this.editorMarkers" v-debounce:1s="saveCondition" :debounce-events="'keyup'"></MonacoEditor>
       </b-col>
       <b-col v-if="subject === 'EXPRESSION'" lg="2">
         <b-form-select id="input-value-violationtype" v-if="subject === 'EXPRESSION'" v-on:change="saveCondition" v-model="violationType" :options="violationTypes"></b-form-select>
@@ -131,7 +131,8 @@ import MonacoEditor from "@/views/components/MonacoEditor.vue";
           {value: 'SECURITY', text: 'Security'}
         ],
         operators: [],
-        possibleValues: []
+        possibleValues: [],
+        editorMarkers: [],
       }
     },
     computed: {
@@ -275,7 +276,20 @@ import MonacoEditor from "@/views/components/MonacoEditor.vue";
             this.violationType = response.data.violationType;
             this.$toastr.s(this.$t('message.updated'));
           }).catch((error) => {
-            this.$toastr.w(this.$t('condition.unsuccessful_action'));
+            if (this.subject === 'EXPRESSION' && error.response && error.response.data && error.response.data.celErrors) {
+              this.editorMarkers = error.response.data.celErrors.map(celErr => {
+                return {
+                  startLineNumber: celErr.line,
+                  startColumn: celErr.column,
+                  endLineNumber: celErr.line,
+                  endColumn: celErr.column + 3, // Add a few columns to make it more visible
+                  message: celErr.message,
+                  severity: 8
+                }
+              });
+            } else {
+              this.$toastr.w(this.$t('condition.unsuccessful_action'));
+            }
           });
         } else {
           let url = `${this.$api.BASE_URL}/${this.$api.URL_POLICY}/${this.policy.uuid}/condition`;

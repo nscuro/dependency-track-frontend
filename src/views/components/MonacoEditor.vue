@@ -9,20 +9,23 @@ export default {
   name: "MonacoEditor",
   props: {
     value: String,
+    markers: [],
   },
   data() {
     return {
+      monaco: null,
       editor: null,
       editorModel: null,
     }
   },
   mounted() {
     loader.init().then(monaco => {
+      this.monaco = monaco;
       this.editor = monaco.editor.create(this.$refs["monaco-editor"], {
         automaticLayout: true,
         bracketPairColorization: true,
         cursorBlinking: 'phase',
-        language: "javascript",
+        language: "python",
         lineDecorationsWidth: 0,
         matchBrackets: true,
         minimap: {
@@ -39,7 +42,7 @@ export default {
       this.editorModel = this.editor.getModel();
       this.editorModel.onDidChangeContent(this.handleContentChange);
       this.editorModel.setValue(this.value);
-    })
+    });
   },
   beforeDestroy() {
     if (this.editor) {
@@ -51,6 +54,7 @@ export default {
   },
   methods: {
     handleContentChange: function (event) {
+      this.monaco.editor.removeAllMarkers("foo");
       this.$emit("change", this.editor.getValue(), event);
       this.$emit("input", this.editor.getValue());
     },
@@ -60,6 +64,13 @@ export default {
       if (this.editor && this.value !== this.editor.getValue()) {
         this.editorModel.setValue(this.value);
       }
+    },
+    markers() {
+      if (!this.markers) {
+        this.monaco.editor.removeAllMarkers("foo");
+      }
+
+      this.monaco.editor.setModelMarkers(this.editorModel, "foo", this.markers);
     }
   }
 }
