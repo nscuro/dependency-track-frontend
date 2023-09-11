@@ -25,7 +25,7 @@
 
       </b-col>
       <b-col v-if="subject === 'EXPRESSION'" lg="6">
-        <b-form-textarea id="input-value" v-if="subject === 'EXPRESSION'" v-model="value" v-debounce:750ms="saveCondition" :debounce-events="'keyup'"></b-form-textarea><br/>
+        <MonacoEditor id="input-value" v-model="value" v-debounce:1s="saveCondition" :debounce-events="'keyup'"></MonacoEditor>
       </b-col>
       <b-col v-if="subject === 'EXPRESSION'" lg="2">
         <b-form-select id="input-value-violationtype" v-if="subject === 'EXPRESSION'" v-on:change="saveCondition" v-model="violationType" :options="violationTypes"></b-form-select>
@@ -41,6 +41,7 @@ import BInputGroupFormInput from "../../forms/BInputGroupFormInput";
 import BInputGroupFormSelect from "../../forms/BInputGroupFormSelect";
 import common from "../../shared/common";
 import ActionableListGroupItem from "../components/ActionableListGroupItem";
+import MonacoEditor from "@/views/components/MonacoEditor.vue";
 
   export default {
     props: {
@@ -50,7 +51,8 @@ import ActionableListGroupItem from "../components/ActionableListGroupItem";
     components: {
       ActionableListGroupItem,
       BInputGroupFormSelect,
-      BInputGroupFormInput
+      BInputGroupFormInput,
+      MonacoEditor,
     },
     created() {
       if (this.condition) {
