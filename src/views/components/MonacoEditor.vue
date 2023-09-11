@@ -1,5 +1,5 @@
 <template>
-  <div ref="monaco-editor" style="border: 1px solid #52525e; border-radius: 0.25rem;"></div>
+  <div ref="monaco-editor" style="border: 1px solid #52525e; border-radius: 0.25rem; height: 100px;"></div>
 </template>
 
 <script>
@@ -18,9 +18,12 @@ export default {
   },
   mounted() {
     loader.init().then(monaco => {
-      monaco.editor.create(this.$refs["monaco-editor"], {
+      this.editor = monaco.editor.create(this.$refs["monaco-editor"], {
+        automaticLayout: true,
         bracketPairColorization: true,
+        cursorBlinking: 'phase',
         language: "javascript",
+        lineDecorationsWidth: 0,
         matchBrackets: true,
         minimap: {
           enabled: false,
@@ -33,32 +36,31 @@ export default {
         wrappingStrategy: "advanced",
       });
 
-      this.editor = monaco.editor.getEditors()[0];
-      this.editorModel = monaco.editor.getModels()[0];
-
-      this.editor.onDidContentSizeChange(this.handleContentSizeChange);
+      this.editorModel = this.editor.getModel();
       this.editorModel.onDidChangeContent(this.handleContentChange);
       this.editorModel.setValue(this.value);
     })
   },
   beforeDestroy() {
     if (this.editor) {
+      this.editorModel.dispose();
       this.editor.dispose();
+      this.editor = null;
+      this.editorModel = null;
     }
   },
   methods: {
-    handleContentChange: function () {
-      this.value = this.editor.getValue();
-      this.$emit("input", this.value);
+    handleContentChange: function (event) {
+      this.$emit("change", this.editor.getValue(), event);
+      this.$emit("input", this.editor.getValue());
     },
-    handleContentSizeChange: function () {
-      const contentHeight = Math.min(1000, this.editor.getContentHeight());
-      this.$refs["monaco-editor"].style.height = `${contentHeight}px`;
-      this.editor.layout({
-        width: this.$refs["monaco-editor"].clientWidth,
-        height: contentHeight,
-      });
-    },
+  },
+  watch: {
+    value() {
+      if (this.editor && this.value !== this.editor.getValue()) {
+        this.editorModel.setValue(this.value);
+      }
+    }
   }
 }
 </script>

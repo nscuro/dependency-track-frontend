@@ -25,7 +25,7 @@
 
       </b-col>
       <b-col v-if="subject === 'EXPRESSION'" lg="6">
-        <MonacoEditor id="input-value" v-model="value" v-debounce:1s="saveCondition" :debounce-events="'keyup'"></MonacoEditor>
+        <MonacoEditor id="input-value" v-if="subject === 'EXPRESSION'" v-model="value" v-debounce:1s="saveCondition" :debounce-events="'keyup'"></MonacoEditor>
       </b-col>
       <b-col v-if="subject === 'EXPRESSION'" lg="2">
         <b-form-select id="input-value-violationtype" v-if="subject === 'EXPRESSION'" v-on:change="saveCondition" v-model="violationType" :options="violationTypes"></b-form-select>
