@@ -5,15 +5,15 @@
         <b-input-group-form-select id="input-subject" required="true"
                                    v-on:change="subjectChanged" v-model="subject" :options="subjects" />
       </b-col>
-      <b-col md="3" lg="2">
+      <b-col md="3"  v-if="subject !== 'EXPRESSION'" lg="2">
         <b-input-group-form-select id="input-operator" required="true"
                                    v-model="operator" :options="operators" />
       </b-col>
-      <b-col md="5" lg="5">
+      <b-col md="5" lg="5" v-if="subject !== 'EXPRESSION'">
         <b-input-group-form-select v-if="subject !== 'COORDINATES' && isSubjectSelectable" id="input-value" required="true"
                                    v-on:change="saveCondition" v-model="value" :options="possibleValues" />
 
-        <b-input-group-form-input v-else-if="subject !== 'COORDINATES' && !isSubjectSelectable" id="input-value" required="true" type="text" v-model="value" lazy="true"
+        <b-input-group-form-input v-else-if="subject !== 'COORDINATES' && subject !== 'EXPRESSION' && !isSubjectSelectable" id="input-value" required="true" type="text" v-model="value" lazy="true"
                                   v-debounce:750ms="saveCondition" :tooltip="valueInputTooltip()" :debounce-events="'keyup'" />
 
         <b-input-group v-else-if="subject === 'COORDINATES'">
@@ -24,6 +24,12 @@
         </b-input-group>
 
       </b-col>
+      <b-col v-if="subject === 'EXPRESSION'" lg="6">
+        <b-form-textarea id="input-value" v-if="subject === 'EXPRESSION'" v-model="value" v-debounce:750ms="saveCondition" :debounce-events="'keyup'"></b-form-textarea><br/>
+      </b-col>
+      <b-col v-if="subject === 'EXPRESSION'" lg="2">
+        <b-form-select id="input-value-violationtype" v-if="subject === 'EXPRESSION'" v-on:change="saveCondition" v-model="violationType" :options="violationTypes"></b-form-select>
+      </b-col>
       <b-col md="0" lg="2">
       </b-col>
     </b-row>
@@ -31,10 +37,10 @@
 </template>
 
 <script>
-  import ActionableListGroupItem from "../components/ActionableListGroupItem";
-  import BInputGroupFormSelect from "../../forms/BInputGroupFormSelect";
-  import BInputGroupFormInput from "../../forms/BInputGroupFormInput";
-  import common from "../../shared/common";
+import BInputGroupFormInput from "../../forms/BInputGroupFormInput";
+import BInputGroupFormSelect from "../../forms/BInputGroupFormSelect";
+import common from "../../shared/common";
+import ActionableListGroupItem from "../components/ActionableListGroupItem";
 
   export default {
     props: {
@@ -48,17 +54,21 @@
     },
     created() {
       if (this.condition) {
+        this.uuid = this.condition.uuid;
         this.subject = this.condition.subject;
         this.subjectChanged();
         this.operator = this.condition.operator;
         this.value = this.condition.value;
+        this.violationType = this.condition.violationType;
       }
     },
     data() {
       return {
+        uuid: null,
         subject: null,
         operator: null,
         value: null,
+        violationType: null,
         coordinatesGroup: null,
         coordinatesName: null,
         coordinatesVersion: null,
@@ -76,7 +86,8 @@
           {value: 'VERSION', text: this.$t('message.version')},
           {value: 'COMPONENT_HASH', text: this.$t('message.component_hash')},
           {value: 'CWE', text: this.$t('message.cwe_full')},
-          {value: 'VULNERABILITY_ID', text: this.$t('message.vulnerability_vuln_id')}
+          {value: 'VULNERABILITY_ID', text: this.$t('message.vulnerability_vuln_id')},
+          {value: 'EXPRESSION', text: 'Expression'}
         ],
         objectOperators: [
           {value: 'IS', text: this.$t('operator.is')},
@@ -112,6 +123,11 @@
           {value: 'CONTAINS_ANY', text: this.$t('operator.contains_any')},
           {value: 'CONTAINS_ALL', text: this.$t('operator.contains_all')}
         ],
+        violationTypes: [
+          {value: 'LICENSE', text: 'License'},
+          {value: 'OPERATIONAL', text: 'Operational'},
+          {value: 'SECURITY', text: 'Security'}
+        ],
         operators: [],
         possibleValues: []
       }
@@ -146,6 +162,8 @@
           case 'CWE':
             return false;
           case 'VULNERABILITY_ID':
+            return false;
+          case 'EXPRESSION':
             return false;
           default:
             return false;
@@ -210,6 +228,9 @@
           case 'VULNERABILITY_ID':
             this.operators = this.objectOperators;
             break;
+          case 'EXPRESSION':
+            this.operators = this.regexOperators;
+            break;
           default:
             this.operators = [];
         }
@@ -236,15 +257,20 @@
         if (!this.subject || !this.operator || !dynamicValue) {
           return;
         }
-        if (this.condition.uuid) {
+        if (this.uuid) {
           let url = `${this.$api.BASE_URL}/${this.$api.URL_POLICY}/condition`;
           this.axios.post(url, {
-            uuid: this.condition.uuid,
+            uuid: this.uuid,
             subject: this.subject,
             operator: this.subject === 'COMPONENT_HASH' ? 'IS' : this.operator,
+            violationType: this.subject === 'EXPRESSION' ? this.violationType : null,
             value: dynamicValue
           }).then((response) => {
-            this.condition = response.data;
+            this.uuid = response.data.uuid;
+            this.subject = response.data.subject;
+            this.operator = response.data.operator;
+            this.value = response.data.value;
+            this.violationType = response.data.violationType;
             this.$toastr.s(this.$t('message.updated'));
           }).catch((error) => {
             this.$toastr.w(this.$t('condition.unsuccessful_action'));
@@ -254,9 +280,14 @@
           this.axios.put(url, {
             subject: this.subject,
             operator: this.subject === 'COMPONENT_HASH' ? 'IS' : this.operator,
-            value: dynamicValue
+            value: dynamicValue,
+            violationType: this.subject === 'EXPRESSION' ? this.violationType : null
           }).then((response) => {
-            this.condition = response.data;
+            this.uuid = response.data.uuid;
+            this.subject = response.data.subject;
+            this.operator = response.data.operator;
+            this.value = response.data.value;
+            this.violationType = response.data.violationType;
             this.$toastr.s(this.$t('message.updated'));
           }).catch((error) => {
             this.$toastr.w(this.$t('condition.unsuccessful_action'));
@@ -264,10 +295,14 @@
         }
       },
       removeCondition: function() {
-        if (this.condition && this.condition.uuid) {
-          let url = `${this.$api.BASE_URL}/${this.$api.URL_POLICY}/condition/${this.condition.uuid}`;
+        if (this.uuid) {
+          let url = `${this.$api.BASE_URL}/${this.$api.URL_POLICY}/condition/${this.uuid}`;
           this.axios.delete(url).then((response) => {
-            this.condition = response.data;
+            this.uuid = response.data.uuid;
+            this.subject = response.data.subject;
+            this.operator = response.data.operator;
+            this.value = response.data.value;
+            this.violationType = response.data.violationType;
             this.$toastr.s(this.$t('message.condition_deleted'));
             this.$emit('conditionRemoved');
           }).catch((error) => {
