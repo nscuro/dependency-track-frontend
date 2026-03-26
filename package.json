@@ -34,6 +34,9 @@
     "chart.js": "2.9.4",
     "core-js": "3.36.1",
     "css-vars-ponyfill": "2.4.9",
+    "cytoscape": "3.33.1",
+    "cytoscape-dagre": "2.5.0",
+    "dagre": "0.8.5",
     "dompurify": "3.3.2",
     "flexver": "1.1.1",
     "font-awesome": "4.7.0",
@@ -60,7 +63,6 @@
     "vue-perfect-scrollbar": "0.2.1",
     "vue-router": "3.6.5",
     "vue-toastr": "2.1.2",
-    "vue2-org-tree": "1.3.6",
     "xss-filters": "1.2.7"
   },
   "devDependencies": {

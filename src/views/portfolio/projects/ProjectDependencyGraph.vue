@@ -1,72 +1,115 @@
 <template>
-  <div style="text-align: center; font-size: xxx-large" v-if="this.loading">
-    Loading, please wait...
-  </div>
-  <div
-    v-else
-    style="overflow-x: hidden; overflow-y: hidden; cursor: grab"
-    @mousedown="mouseDownHandler"
-  >
-    <span
-      v-if="
-        this.$route.params.componentUuids &&
-        this.$route.params.componentUuids.length > 0 &&
-        this.project.directDependencies &&
-        this.project.directDependencies.length > 0 &&
-        !this.notFound
-      "
-    >
+  <div>
+    <div style="text-align: center; font-size: xxx-large" v-show="loading">
+      Loading, please wait...
+    </div>
+    <div v-show="!loading">
+      <span
+        v-if="
+          this.$route.params.componentUuids &&
+          this.$route.params.componentUuids.length > 0 &&
+          this.project.directDependencies &&
+          this.project.directDependencies.length > 0 &&
+          !this.notFound
+        "
+      >
+        <c-switch
+          style="margin-left: 1.5rem; margin-right: 0.5rem"
+          id="showCompleteGraph"
+          color="primary"
+          v-model="showCompleteGraph"
+          label
+          v-bind="labelIcon"
+        />
+        <span class="text-muted">{{ $t('message.show_complete_graph') }}</span>
+      </span>
       <c-switch
         style="margin-left: 1.5rem; margin-right: 0.5rem"
-        id="showCompleteGraph"
+        id="highlightOutdatedComponents"
         color="primary"
-        v-model="showCompleteGraph"
+        v-model="highlightOutdatedComponents"
         label
         v-bind="labelIcon"
       />
-      <span class="text-muted">{{ $t('message.show_complete_graph') }}</span>
-    </span>
-    <c-switch
-      style="margin-left: 1.5rem; margin-right: 0.5rem"
-      id="highlightOutdatedComponents"
-      color="primary"
-      v-model="highlightOutdatedComponents"
-      label
-      v-bind="labelIcon"
-    />
-    <span class="text-muted">{{ $t('message.show_update_information') }}</span
-    ><br />
-    <span v-if="this.notFound">
       <span class="text-muted">{{
-        $t('message.not_found_in_dependency_graph')
-      }}</span
-      ><br />
-    </span>
-    <vue2-org-tree
-      :data="data"
-      :horizontal="true"
-      :collapsable="collapsable"
-      :label-class-name="labelClassName"
-      :render-content="renderContent"
-      selected-class-name="bg-tomato"
-      selected-key="selectedKey"
-      @on-expand="onExpand"
-      @on-node-click="onNodeClick"
-    />
+        $t('message.show_update_information')
+      }}</span>
+      <br />
+      <span v-if="notFound">
+        <span class="text-muted">{{
+          $t('message.not_found_in_dependency_graph')
+        }}</span>
+        <br />
+      </span>
+      <div class="graph-wrapper">
+        <div class="graph-controls">
+          <span class="control-group">
+            <button
+              class="btn btn-sm btn-outline-primary"
+              @click="setLayout('dagre-LR')"
+              :class="{ active: activeLayout === 'dagre-LR' }"
+            >
+              <i class="fa fa-arrow-right"></i> LR
+            </button>
+            <button
+              class="btn btn-sm btn-outline-primary"
+              @click="setLayout('dagre-TB')"
+              :class="{ active: activeLayout === 'dagre-TB' }"
+            >
+              <i class="fa fa-arrow-down"></i> TB
+            </button>
+            <button
+              class="btn btn-sm btn-outline-primary"
+              @click="setLayout('dagre-RL')"
+              :class="{ active: activeLayout === 'dagre-RL' }"
+            >
+              <i class="fa fa-arrow-left"></i> RL
+            </button>
+            <button
+              class="btn btn-sm btn-outline-primary"
+              @click="setLayout('network')"
+              :class="{ active: activeLayout === 'network' }"
+            >
+              <i class="fa fa-share-alt"></i> Network
+            </button>
+          </span>
+          <span class="control-group">
+            <button
+              class="btn btn-sm btn-outline-secondary"
+              @click="fitToScreen"
+            >
+              <i class="fa fa-compress"></i> Fit
+            </button>
+            <button
+              class="btn btn-sm btn-outline-secondary"
+              @click="centerOnRoot"
+            >
+              <i class="fa fa-crosshairs"></i> Root
+            </button>
+          </span>
+        </div>
+        <div ref="cyContainer" class="cy-container"></div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script>
-import Vue2OrgTree from 'vue2-org-tree';
+import cytoscape from 'cytoscape';
+import cytoscapeDagre from 'cytoscape-dagre';
 import permissionsMixin from '../../../mixins/permissionsMixin';
 import xssFilters from 'xss-filters';
 import { Switch as cSwitch } from '@coreui/vue';
-let pos = { top: 0, left: 0, x: 0, y: 0 };
+
+let _dagreRegistered = false;
+if (!_dagreRegistered) {
+  cytoscape.use(cytoscapeDagre);
+  _dagreRegistered = true;
+}
 
 export default {
   mixins: [permissionsMixin],
   components: {
-    Vue2OrgTree,
     cSwitch,
   },
   props: {
@@ -90,22 +133,29 @@ export default {
           'true'
         : false;
   },
+  created() {
+    // Non-reactive: must NOT be in data() to avoid Vue 2 deep-observing
+    // the massive cytoscape instance object, which freezes the browser.
+    this.cy = null;
+    this.graphResponse = null;
+    this.expandedComponents = new Set();
+  },
   mounted() {
     this.computeData();
   },
+  beforeDestroy() {
+    if (this.cy) {
+      this.cy.destroy();
+      this.cy = null;
+    }
+  },
   data() {
     return {
-      data: {},
-      response: Object,
-      nodeId: 0,
-      expandAll: true,
-      horizontal: false,
-      collapsable: true,
-      pos: { top: 0, left: 0, x: 0, y: 0 },
       loading: false,
       showCompleteGraph: this.showCompleteGraph,
       notFound: false,
       highlightOutdatedComponents: this.highlightOutdatedComponents,
+      activeLayout: 'dagre-LR',
       labelIcon: {
         dataOn: '\u2713',
         dataOff: '\u2715',
@@ -114,66 +164,34 @@ export default {
     };
   },
   watch: {
-    project: function () {
+    project() {
       this.computeData();
     },
-    showCompleteGraph: function () {
+    showCompleteGraph() {
       if (this.$route.params.componentUuids && localStorage) {
         localStorage.setItem(
           'ProjectDependencyGraphShowCompleteGraph',
           this.showCompleteGraph.toString(),
         );
       }
-      if (this.showCompleteGraph) {
-        this.data = {
-          id: this.nodeId,
-          label: this.createNodeLabel(this.project),
-          objectType: 'PROJECT',
-          children: this.transformDependenciesToOrgTreeWithSearchedDependency(
-            this.response.data,
-            { gatheredKeys: [] },
-            false,
-          ),
-          fetchedChildren: true,
-          expand: !!this.$route.params.componentUuids,
-        };
-        if (this.$route.params.componentUuids) {
-          new Promise((resolve) => setTimeout(resolve, 50)).then(() => {
-            document.getElementsByClassName('searched').item(0).scrollIntoView({
-              behavior: 'smooth',
-              inline: 'center',
-              block: 'center',
-            });
-          });
-        }
-      } else {
-        this.data = {
-          id: this.nodeId,
-          label: this.createNodeLabel(this.project),
-          objectType: 'PROJECT',
-          children: this.transformDependenciesToOrgTreeWithSearchedDependency(
-            this.response.data,
-            { gatheredKeys: [] },
-            true,
-          ),
-          fetchedChildren: true,
-          expand: true,
-        };
+      if (this.graphResponse) {
+        this.renderSearchedGraph(this.graphResponse, !this.showCompleteGraph);
       }
     },
-    highlightOutdatedComponents: function () {
+    highlightOutdatedComponents() {
       if (localStorage) {
         localStorage.setItem(
           'ProjectDependencyGraphHighlightOutdatedComponents',
           this.highlightOutdatedComponents.toString(),
         );
       }
+      if (this.cy) {
+        this.applyOutdatedHighlighting();
+      }
     },
-    $route: function (to, from) {
+    $route(to, from) {
       if (!to.params.componentUuids && from.params.componentUuids) {
         this.showCompleteGraph = true;
-        this.collapse(this.data.children);
-        this.data.expand = false;
       } else if (to.params.componentUuids && !from.params.componentUuids) {
         this.showCompleteGraph =
           localStorage &&
@@ -184,359 +202,248 @@ export default {
               ) === 'true'
             : false;
       }
-      // build map of searched components for later fast lookup
       this.createSearchedComponentLookupTable(to.params.componentUuids);
+      this.computeData();
     },
   },
   methods: {
-    computeData: function () {
-      // prepare base object
-      const data = {
-        id: this.nodeId,
-        label: this.createNodeLabel(this.project),
-        objectType: 'PROJECT',
-      };
-      // do not assign data to this.data yet, otherwise tree breaks :(
-
-      // project has no tree data
-      if (!this.project || !this.project.directDependencies) {
-        this.$emit('total', 0);
-        this.data = data;
-        return;
+    initCytoscape(elements) {
+      if (this.cy) {
+        this.cy.destroy();
+        this.cy = null;
       }
+      this.$nextTick(() => {
+        this.cy = cytoscape({
+          container: this.$refs.cyContainer,
+          elements: elements,
+          style: [
+            {
+              selector: 'node',
+              style: {
+                label: 'data(label)',
+                'text-valign': 'center',
+                'text-halign': 'center',
+                'background-color': '#fff',
+                'border-width': 1,
+                'border-color': '#20a8d8',
+                color: '#333',
+                'font-size': '10px',
+                'text-wrap': 'none',
+                shape: 'roundrectangle',
+                width: 'label',
+                height: 'label',
+                padding: '5px',
+                'text-max-width': '300px',
+              },
+            },
+            {
+              selector: 'node[objectType = "PROJECT"]',
+              style: {
+                'background-color': '#d0eaf4',
+                'border-width': 3,
+                'border-color': '#20a8d8',
+                'font-weight': 'bold',
+                'font-size': '12px',
+              },
+            },
+            {
+              selector: 'node.searched',
+              style: {
+                'background-color': '#d4edda',
+                'border-width': 3,
+                'border-color': '#4dbd74',
+                'font-weight': 'bold',
+              },
+            },
+            {
+              selector: 'node.outdated',
+              style: {
+                'border-color': '#ffc107',
+                'border-width': 2,
+              },
+            },
+            {
+              selector: 'node.path-highlight',
+              style: {
+                'background-color': '#e8f8ec',
+                'border-width': 2,
+              },
+            },
+            {
+              selector: 'node.dimmed',
+              style: {
+                opacity: 0.3,
+              },
+            },
+            {
+              selector: 'node.expandable',
+              style: {
+                'border-style': 'dashed',
+                'border-width': 2,
+              },
+            },
+            // Badge node for expand indicator
+            {
+              selector: 'node.expand-badge',
+              style: {
+                shape: 'ellipse',
+                width: '22px',
+                height: '22px',
+                'background-color': '#105770',
+                color: '#fff',
+                'font-size': '9px',
+                'font-weight': 'bold',
+                'text-valign': 'center',
+                'text-halign': 'center',
+                'border-width': 0,
+                padding: '0',
+                label: 'data(badgeLabel)',
+              },
+            },
+            {
+              selector: 'node.expand-badge:active',
+              style: {
+                'background-color': '#20a8d8',
+              },
+            },
+            {
+              selector: 'edge',
+              style: {
+                width: 1,
+                'line-color': '#20a8d8',
+                'target-arrow-color': '#20a8d8',
+                'target-arrow-shape': 'triangle',
+                'curve-style': 'bezier',
+                'arrow-scale': 0.8,
+                opacity: 0.2,
+              },
+            },
+            {
+              selector: 'edge.shortest-path',
+              style: {
+                'line-color': '#4dbd74',
+                'target-arrow-color': '#4dbd74',
+                width: 3,
+                opacity: 1,
+                'z-index': 10,
+              },
+            },
+            {
+              selector: 'edge.path-highlight',
+              style: {
+                'line-color': '#4dbd74',
+                'target-arrow-color': '#4dbd74',
+                width: 2,
+              },
+            },
+            {
+              selector: 'edge.dimmed',
+              style: {
+                opacity: 0.08,
+              },
+            },
+            // Hidden edge to badge (no arrow)
+            {
+              selector: 'edge.badge-edge',
+              style: {
+                'line-color': '#105770',
+                'line-style': 'dashed',
+                'target-arrow-shape': 'none',
+                width: 1,
+                opacity: 0.5,
+              },
+            },
+          ],
+          layout: { name: 'preset' },
+          wheelSensitivity: 0.3,
+          minZoom: 0.1,
+          maxZoom: 3,
+        });
 
-      // tree available, populate common info
-      this.$emit('total', 1);
-      data.fetchedChildren = true;
+        this.cy.on('tap', 'node', (evt) => {
+          let node = evt.target;
+          // Clicking a badge expands the parent component
+          if (node.hasClass('expand-badge')) {
+            let parentId = node.data('parentId');
+            this.expandNode(parentId);
+            return;
+          }
+          if (node.hasClass('expandable')) {
+            this.expandNode(node.data('id'));
+            return;
+          }
+          let objectType = node.data('objectType');
+          let uuid = node.data('id');
+          if (objectType === 'COMPONENT') {
+            this.$router.push({ path: '/components/' + uuid });
+          } else if (objectType === 'SERVICE') {
+            this.$router.push({ path: '/services/' + uuid });
+          }
+        });
 
-      // full tree, not searching components
-      if (!this.$route.params.componentUuids) {
-        data.children = this.transformDependenciesToOrgTree(
-          JSON.parse(this.project.directDependencies),
-          true,
-          { gatheredKeys: [] },
-          this.project.uuid,
-          'PROJECT',
-        );
-        this.data = data;
-        return;
-      }
+        this.runLayout();
+        this.applyOutdatedHighlighting();
 
-      // tree with component search active
-      this.createSearchedComponentLookupTable(
-        this.$route.params.componentUuids,
-      );
-      this.loading = true;
-      let url = `${this.$api.BASE_URL}/${this.$api.URL_COMPONENT}/project/${
-        this.project.uuid
-      }/dependencyGraph/${encodeURIComponent(
-        this.$route.params.componentUuids,
-      )}`;
-      this.axios.get(url).then((response) => {
-        if (response.data && Object.keys(response.data).length > 0) {
-          this.notFound = false;
-          this.response = response;
-
-          data.children =
-            this.transformDependenciesToOrgTreeWithSearchedDependency(
-              this.response.data,
-              { gatheredKeys: [] },
-              !this.showCompleteGraph,
-            );
-          data.expand = true;
-          this.data = data;
-
-          this.loading = false;
-          new Promise((resolve) => setTimeout(resolve, 50)).then(() => {
-            const firstSearched = document
-              .getElementsByClassName('searched')
-              .item(0);
-            firstSearched &&
-              firstSearched.scrollIntoView({
-                behavior: 'smooth',
-                inline: 'center',
-                block: 'center',
-              });
-            !firstSearched &&
-              console.warn('Failed to locate first searched component in tree');
-          });
-        } else {
-          this.$route.query.dependencyGraph = null;
-          this.notFound = true;
-          data.children = this.transformDependenciesToOrgTree(
-            JSON.parse(this.project.directDependencies),
-            true,
-            { gatheredKeys: [] },
-            this.project.uuid,
-            'PROJECT',
-          );
-          this.loading = false;
-
-          this.data = data;
+        // Center on project root at readable zoom
+        let root = this.cy.getElementById(this.project.uuid);
+        if (root.length > 0) {
+          this.cy.zoom({ level: 1.5, position: root.position() });
+          this.cy.center(root);
         }
       });
     },
-    mouseDownHandler: function (event) {
-      if (
-        event.button === 0 &&
-        !event.target.classList.contains('clickable-node') &&
-        !event.target.classList.contains('org-tree-node-btn')
-      ) {
-        this.$el.style.cursor = 'grabbing';
-        this.$el.style.userSelect = 'none';
-        this.pos = {
-          left: this.$el.scrollLeft,
-          top: document.documentElement.scrollTop,
-          x: event.clientX,
-          y: event.clientY,
+    setLayout(layout) {
+      this.activeLayout = layout;
+      this.runLayout();
+      this.fitToScreen();
+    },
+    fitToScreen() {
+      if (!this.cy) return;
+      this.cy.fit(undefined, 30);
+    },
+    centerOnRoot() {
+      if (!this.cy) return;
+      let root = this.cy.getElementById(this.project.uuid);
+      if (root.length > 0) {
+        this.cy.zoom({ level: 1.5, position: root.position() });
+        this.cy.center(root);
+      }
+    },
+    runLayout() {
+      if (!this.cy || this.cy.nodes().length === 0) return;
+
+      let layoutConfig;
+      if (this.activeLayout === 'network') {
+        layoutConfig = {
+          name: 'cose',
+          idealEdgeLength: 120,
+          nodeOverlap: 30,
+          nodeRepulsion: 8000,
+          edgeElasticity: 100,
+          gravity: 0.25,
+          numIter: 1500,
+          fit: false,
+          padding: 30,
+          animate: false,
+          randomize: true,
         };
-        document.addEventListener('mousemove', this.mouseMoveHandler);
-        document.addEventListener('mouseup', this.mouseUpHandler);
-      } else if (event.button === 1) {
-        this.$el.style.cursor = 'default';
-        this.$el.style.userSelect = 'none';
-        this.pos = {
-          left: this.$el.scrollLeft,
-          top: document.documentElement.scrollTop,
-          x: event.clientX,
-          y: event.clientY,
-        };
-        document.addEventListener(
-          'mousemove',
-          this.mouseMoveHandlerMiddleMouseButton,
-        );
-        document.addEventListener('mouseup', this.mouseUpHandler);
-      }
-    },
-    mouseMoveHandler: function (event) {
-      const dx = event.clientX - this.pos.x;
-      const dy = event.clientY - this.pos.y;
-
-      document.documentElement.scrollTop = this.pos.top - dy;
-      this.$el.scrollLeft = this.pos.left - dx;
-    },
-    mouseMoveHandlerMiddleMouseButton: function (event) {
-      const dx = event.clientX - this.pos.x;
-
-      this.$el.scrollLeft = this.pos.left + dx;
-    },
-    mouseUpHandler: function () {
-      document.removeEventListener('mousemove', this.mouseMoveHandler);
-      document.removeEventListener(
-        'mousemove',
-        this.mouseMoveHandlerMiddleMouseButton,
-      );
-      document.removeEventListener('mouseup', this.mouseUpHandler);
-
-      this.$el.style.cursor = 'grab';
-      this.$el.style.removeProperty('user-select');
-    },
-    transformDependenciesToOrgTree: function (
-      dependencies,
-      getChildren,
-      treeNode,
-      parentUuid,
-      objectType,
-    ) {
-      let children = null;
-      if (dependencies && dependencies.length > 0) {
-        children = [];
-        for (let i = 0; i < dependencies.length; i++) {
-          let dependency = dependencies[i];
-          let childNode = this.transformDependencyToOrgTree(dependency);
-          for (const gatheredKey of treeNode.gatheredKeys) {
-            childNode.gatheredKeys.push(gatheredKey);
-          }
-          if (
-            !childNode.gatheredKeys.some(
-              (gatheredKey) => gatheredKey === childNode.label,
-            )
-          ) {
-            childNode.gatheredKeys.push(childNode.label);
-            children.push(childNode);
-          }
-        }
-
-        if (getChildren === true) {
-          this.getChildrens(children, parentUuid, objectType);
-        }
-      }
-      return children;
-    },
-    transformDependenciesToOrgTreeWithSearchedDependency: function (
-      dependencies,
-      treeNode,
-      onlySearched,
-    ) {
-      let children = [];
-      if (dependencies) {
-        let directDependencies = JSON.parse(this.project.directDependencies);
-        directDependencies.forEach((directDependency) => {
-          if (
-            dependencies[directDependency.uuid] &&
-            (!onlySearched ||
-              dependencies[directDependency.uuid].expandDependencyGraph ||
-              this.searchedComponentUuids[directDependency.uuid])
-          ) {
-            let childNode = this.transformDependencyToOrgTree(
-              dependencies[directDependency.uuid],
-            );
-            childNode.gatheredKeys.push(childNode.label);
-            children.push(childNode);
-            if (
-              onlySearched &&
-              this.searchedComponentUuids[directDependency.uuid]
-            ) {
-              this.$set(
-                childNode,
-                'children',
-                this.getChildrenFromDependencyWithSearchedDependency(
-                  dependencies,
-                  dependencies[directDependency.uuid],
-                  childNode,
-                  false,
-                ),
-              );
-            } else {
-              this.$set(
-                childNode,
-                'children',
-                this.getChildrenFromDependencyWithSearchedDependency(
-                  dependencies,
-                  dependencies[directDependency.uuid],
-                  childNode,
-                  onlySearched,
-                ),
-              );
-            }
-          }
-        });
-      }
-      return children;
-    },
-    getChildrenFromDependencyWithSearchedDependency: function (
-      dependencies,
-      component,
-      treeNode,
-      onlySearched,
-    ) {
-      let children = [];
-      if (component.dependencyGraph) {
-        component.dependencyGraph.forEach((dependency) => {
-          if (
-            dependencies[dependency] &&
-            (!onlySearched ||
-              dependencies[dependency].expandDependencyGraph ||
-              this.searchedComponentUuids[dependency] !== -1)
-          ) {
-            let childNode = this.transformDependencyToOrgTree(
-              dependencies[dependency],
-            );
-            for (const gatheredKey of treeNode.gatheredKeys) {
-              childNode.gatheredKeys.push(gatheredKey);
-            }
-            if (
-              !childNode.gatheredKeys.some(
-                (gatheredKey) => gatheredKey === childNode.label,
-              )
-            ) {
-              childNode.gatheredKeys.push(childNode.label);
-              children.push(childNode);
-              if (onlySearched && this.searchedComponentUuids[dependency]) {
-                this.$set(
-                  childNode,
-                  'children',
-                  this.getChildrenFromDependencyWithSearchedDependency(
-                    dependencies,
-                    dependencies[dependency],
-                    childNode,
-                    false,
-                  ),
-                );
-                this.collapse(childNode.children);
-              } else {
-                this.$set(
-                  childNode,
-                  'children',
-                  this.getChildrenFromDependencyWithSearchedDependency(
-                    dependencies,
-                    dependencies[dependency],
-                    childNode,
-                    onlySearched,
-                  ),
-                );
-              }
-            }
-          }
-        });
-      }
-      return children;
-    },
-    transformDependencyToOrgTree: function (dependency) {
-      this.nodeId++;
-      return {
-        id: this.nodeId,
-        label: this.createNodeLabel(dependency),
-        version: dependency.version,
-        objectType: dependency.objectType || 'COMPONENT',
-        uuid: dependency.uuid,
-        fetchedChildren: !!dependency.expandDependencyGraph,
-        gatheredKeys: [],
-        expand: !!dependency.expandDependencyGraph,
-        latestVersion:
-          dependency.latestVersion || dependency.repositoryMeta?.latestVersion,
-      };
-    },
-    getChildrens: function (treeNodes, parentUuid, objectType) {
-      let dependenciesFunc = async () => {
-        let url = this.getDependenciesUrl(parentUuid, objectType);
-
-        let treeNodeMap = new Map();
-
-        for (let treeNode of treeNodes) {
-          treeNodeMap.set(treeNode.uuid, treeNode);
-        }
-
-        let response = await this.axios.get(url);
-        let data = response.data;
-        let dependencies = [...data];
-        if (dependencies.length > 0) {
-          for (let dependency of dependencies) {
-            if (dependency) {
-              let treeNode = treeNodeMap.get(dependency.uuid);
-              treeNode.latestVersion = dependency.latestVersion;
-              if (dependency.directDependencies) {
-                let jsonObject = JSON.parse(dependency.directDependencies);
-                this.$set(
-                  treeNode,
-                  'children',
-                  this.transformDependenciesToOrgTree(
-                    jsonObject,
-                    false,
-                    treeNode,
-                    dependency.uuid,
-                    'COMPONENT',
-                  ),
-                );
-              }
-            }
-          }
-        }
-      };
-      return dependenciesFunc();
-    },
-    getDependenciesUrl(parentUuid, objectType) {
-      if (objectType === 'PROJECT') {
-        return `${this.$api.BASE_URL}/${this.$api.URL_DEPENDENCY_GRAPH}/project/${parentUuid}/directDependencies`;
-      } else if (objectType === 'COMPONENT') {
-        return `${this.$api.BASE_URL}/${this.$api.URL_DEPENDENCY_GRAPH}/component/${parentUuid}/directDependencies`;
       } else {
-        return null;
+        let rankDir = this.activeLayout.replace('dagre-', '');
+        layoutConfig = {
+          name: 'dagre',
+          rankDir: rankDir,
+          nodeSep: 20,
+          rankSep: 50,
+          edgeSep: 10,
+          fit: false,
+          padding: 30,
+          animate: false,
+        };
       }
+
+      this.cy.layout(layoutConfig).run();
     },
-    createNodeLabel: function (identity) {
-      // Could be a project or a directDependency object.
-      // Projects don't have the objectType property.
+    createNodeLabel(identity) {
       const isProject = !identity.objectType;
       if (!isProject && identity.purlCoordinates) {
         return identity.purlCoordinates;
@@ -556,102 +463,440 @@ export default {
         return label;
       }
     },
-    labelClassName: function (data) {
-      if (
-        this.$route.params.componentUuids &&
-        this.searchedComponentUuids[data.uuid]
-      ) {
-        return 'clickable-node searched';
+    computeData() {
+      if (!this.project || !this.project.directDependencies) {
+        this.$emit('total', 0);
+        return;
       }
-      return 'clickable-node';
-    },
-    renderContent: function (h, data) {
-      if (
-        this.highlightOutdatedComponents &&
-        data.version &&
-        data.latestVersion &&
-        data.latestVersion !== data.version
-      ) {
-        return (
-          <div style="white-space: nowrap;">
-            {data.label + ' '}
-            <i
-              id={'icon' + data.id}
-              class="fa fa-exclamation-triangle status-warning"
-              aria-hidden="true"
-            ></i>
-            <b-tooltip
-              target={'icon' + data.id}
-              triggers="hover"
-              noninteractive="noninteractive"
-            >
-              {'Risk: Outdated component. Current version is: ' +
-                xssFilters.inHTMLData(data.latestVersion)}
-            </b-tooltip>
-          </div>
-        );
-      } else {
-        return <div style="white-space: nowrap;">{data.label}</div>;
+
+      this.$emit('total', 1);
+
+      if (!this.$route.params.componentUuids) {
+        this.renderFullGraph();
+        return;
       }
-    },
-    onExpand: async function (e, data) {
-      if (!data.fetchedChildren) {
-        e.target.style.cursor = 'wait';
-        if (data.objectType === 'COMPONENT') {
-          await this.getChildrens(data.children, data.uuid, data.objectType);
-        }
-        data.fetchedChildren = true;
-        e.target.style.cursor = 'pointer';
-        this.$set(data, 'expand', true);
-      } else {
-        if ('expand' in data) {
-          data.expand = !data.expand;
-          if (!data.expand && data.children) {
-            this.collapse(data.children);
-          }
+
+      this.createSearchedComponentLookupTable(
+        this.$route.params.componentUuids,
+      );
+      this.loading = true;
+
+      let url = `${this.$api.BASE_URL}/${this.$api.URL_COMPONENT}/project/${
+        this.project.uuid
+      }/dependencyGraph/${encodeURIComponent(
+        this.$route.params.componentUuids,
+      )}`;
+
+      this.axios.get(url).then((response) => {
+        this.loading = false;
+        if (response.data && Object.keys(response.data).length > 0) {
+          this.notFound = false;
+          this.graphResponse = response.data;
+          this.renderSearchedGraph(response.data, !this.showCompleteGraph);
         } else {
-          this.$set(data, 'expand', true);
+          this.notFound = true;
+          this.renderFullGraph();
         }
-      }
-    },
-    onNodeClick: function (e, data) {
-      this.$set(data, 'selectedKey', !data.selectedKey);
-      if (data.objectType === 'COMPONENT') {
-        this.$router.push({ path: '/components/' + data.uuid });
-      } else if (data.objectType === 'SERVICE') {
-        this.$router.push({ path: '/services/' + data.uuid });
-      }
-    },
-    collapse: function (list) {
-      var _this = this;
-      list.forEach(function (child) {
-        if (child.expand) {
-          child.expand = false;
-        }
-        child.fetchedChildren = false;
-        child.children && _this.collapse(child.children);
       });
     },
-    expandChange: function () {
-      this.toggleExpand(this.data, this.expandAll);
-    },
-    toggleExpand: function (data, val) {
-      var _this = this;
-      if (Array.isArray(data)) {
-        data.forEach(function (item) {
-          _this.$set(item, 'expand', val);
-          if (item.children) {
-            _this.toggleExpand(item.children, val);
+    renderFullGraph() {
+      this.expandedComponents = new Set();
+      let directDeps = JSON.parse(this.project.directDependencies);
+      let elements = [];
+
+      // Project root node
+      elements.push({
+        group: 'nodes',
+        data: {
+          id: this.project.uuid,
+          label: this.createNodeLabel(this.project),
+          objectType: 'PROJECT',
+        },
+      });
+
+      // Direct dependency placeholder nodes (will be updated after API call)
+      for (let dep of directDeps) {
+        let label = dep.purlCoordinates || dep.purl || dep.uuid;
+        elements.push({
+          group: 'nodes',
+          data: {
+            id: dep.uuid,
+            label: label,
+            objectType: dep.objectType || 'COMPONENT',
+          },
+          classes: 'expandable',
+        });
+        elements.push({
+          group: 'edges',
+          data: {
+            id: 'e-' + this.project.uuid + '-' + dep.uuid,
+            source: this.project.uuid,
+            target: dep.uuid,
+          },
+        });
+      }
+
+      this.initCytoscape(elements);
+
+      // Fetch full component info for labels, versions, and child counts
+      let url = `${this.$api.BASE_URL}/${this.$api.URL_DEPENDENCY_GRAPH}/project/${this.project.uuid}/directDependencies`;
+      this.axios.get(url).then((response) => {
+        if (!this.cy || !response.data) return;
+        this.cy.batch(() => {
+          for (let comp of response.data) {
+            if (!comp) continue;
+            let node = this.cy.getElementById(comp.uuid);
+            if (node.length === 0) continue;
+            node.data('label', this.createNodeLabel(comp));
+            node.data('version', comp.version);
+            node.data(
+              'latestVersion',
+              comp.latestVersion || comp.repositoryMeta?.latestVersion,
+            );
+            if (comp.directDependencies) {
+              let children = JSON.parse(comp.directDependencies);
+              if (children && children.length > 0) {
+                node.addClass('expandable');
+                node.data('childCount', children.length);
+                node.data('childDeps', JSON.stringify(children));
+                this.addExpandBadge(comp.uuid, children.length);
+              } else {
+                node.removeClass('expandable');
+              }
+            } else {
+              node.removeClass('expandable');
+            }
           }
         });
-      } else {
-        this.$set(data, 'expand', val);
-        if (data.children) {
-          _this.toggleExpand(data.children, val);
+        this.applyOutdatedHighlighting();
+        this.runLayout();
+
+        // Re-center on root after layout
+        let root = this.cy.getElementById(this.project.uuid);
+        if (root.length > 0) {
+          this.cy.zoom({ level: 1.5, position: root.position() });
+          this.cy.center(root);
+        }
+      });
+    },
+    addExpandBadge(parentId, childCount) {
+      let badgeId = 'badge-' + parentId;
+      if (this.cy.getElementById(badgeId).length > 0) return;
+      this.cy.add([
+        {
+          group: 'nodes',
+          data: {
+            id: badgeId,
+            badgeLabel: '+' + childCount,
+            parentId: parentId,
+          },
+          classes: 'expand-badge',
+        },
+        {
+          group: 'edges',
+          data: {
+            id: 'be-' + parentId,
+            source: parentId,
+            target: badgeId,
+          },
+          classes: 'badge-edge',
+        },
+      ]);
+    },
+    removeExpandBadge(parentId) {
+      let badgeId = 'badge-' + parentId;
+      let badge = this.cy.getElementById(badgeId);
+      let edge = this.cy.getElementById('be-' + parentId);
+      if (badge.length > 0) badge.remove();
+      if (edge.length > 0) edge.remove();
+    },
+    renderSearchedGraph(dependencies, onlySearched) {
+      this.expandedComponents = new Set();
+      let directDeps = JSON.parse(this.project.directDependencies);
+      let projectId = this.project.uuid;
+      let self = this;
+
+      // Build forward adjacency: parent -> [children] (only within dependencies)
+      let forwardAdj = {};
+      // Project -> direct deps
+      let directDepUuids = [];
+      for (let dep of directDeps) {
+        if (dependencies[dep.uuid]) {
+          directDepUuids.push(dep.uuid);
         }
       }
+      forwardAdj[projectId] = directDepUuids;
+      for (let [uuid, comp] of Object.entries(dependencies)) {
+        if (comp.dependencyGraph) {
+          forwardAdj[uuid] = comp.dependencyGraph.filter(
+            (d) => dependencies[d],
+          );
+        } else {
+          forwardAdj[uuid] = [];
+        }
+      }
+
+      // Build reverse adjacency: child -> [parents]
+      let reverseAdj = {};
+      for (let [parent, children] of Object.entries(forwardAdj)) {
+        for (let child of children) {
+          if (!reverseAdj[child]) reverseAdj[child] = [];
+          reverseAdj[child].push(parent);
+        }
+      }
+
+      // Find searched node UUIDs that exist in the data
+      let searchedUuids = Object.keys(this.searchedComponentUuids).filter(
+        (uuid) => dependencies[uuid],
+      );
+
+      // Determine included nodes
+      let includedNodes = new Set();
+      if (onlySearched) {
+        // Reverse BFS from searched nodes: only true ancestors
+        let queue = [...searchedUuids];
+        for (let uuid of queue) {
+          includedNodes.add(uuid);
+        }
+        while (queue.length > 0) {
+          let uuid = queue.shift();
+          let parents = reverseAdj[uuid] || [];
+          for (let parent of parents) {
+            if (!includedNodes.has(parent)) {
+              includedNodes.add(parent);
+              queue.push(parent);
+            }
+          }
+        }
+        // Always include project root
+        includedNodes.add(projectId);
+      } else {
+        // Complete graph: include everything
+        includedNodes.add(projectId);
+        for (let uuid of Object.keys(dependencies)) {
+          includedNodes.add(uuid);
+        }
+      }
+
+      // Compute shortest path from root to each searched node (BFS)
+      let shortestPathEdges = new Set();
+      if (searchedUuids.length > 0) {
+        let prev = {}; // uuid -> parent uuid on shortest path
+        let visited = new Set();
+        let queue = [projectId];
+        visited.add(projectId);
+        let found = new Set();
+
+        while (queue.length > 0 && found.size < searchedUuids.length) {
+          let uuid = queue.shift();
+          if (self.searchedComponentUuids[uuid]) {
+            found.add(uuid);
+          }
+          let children = forwardAdj[uuid] || [];
+          for (let child of children) {
+            if (!visited.has(child) && includedNodes.has(child)) {
+              visited.add(child);
+              prev[child] = uuid;
+              queue.push(child);
+            }
+          }
+        }
+
+        // Trace back from each searched node to root
+        for (let target of searchedUuids) {
+          let cur = target;
+          while (prev[cur] !== undefined) {
+            shortestPathEdges.add('e-' + prev[cur] + '-' + cur);
+            cur = prev[cur];
+          }
+        }
+      }
+
+      // Build elements
+      let elements = [];
+      let addedNodes = new Set();
+      let addedEdges = new Set();
+
+      // Project root
+      elements.push({
+        group: 'nodes',
+        data: {
+          id: projectId,
+          label: this.createNodeLabel(this.project),
+          objectType: 'PROJECT',
+        },
+      });
+      addedNodes.add(projectId);
+
+      // Add included component nodes
+      for (let uuid of includedNodes) {
+        if (addedNodes.has(uuid)) continue;
+        let comp = dependencies[uuid];
+        if (!comp) continue;
+        let classes = [];
+        if (self.searchedComponentUuids[uuid]) {
+          classes.push('searched');
+        }
+        elements.push({
+          group: 'nodes',
+          data: {
+            id: uuid,
+            label: self.createNodeLabel(comp),
+            objectType: comp.objectType || 'COMPONENT',
+            version: comp.version,
+            latestVersion:
+              comp.latestVersion || comp.repositoryMeta?.latestVersion,
+          },
+          classes: classes.join(' '),
+        });
+        addedNodes.add(uuid);
+      }
+
+      // Add edges (only between included nodes)
+      for (let [parent, children] of Object.entries(forwardAdj)) {
+        if (!addedNodes.has(parent)) continue;
+        for (let child of children) {
+          if (!addedNodes.has(child)) continue;
+          let edgeId = 'e-' + parent + '-' + child;
+          if (addedEdges.has(edgeId)) continue;
+          let classes = [];
+          if (shortestPathEdges.has(edgeId)) {
+            classes.push('shortest-path');
+          }
+          elements.push({
+            group: 'edges',
+            data: { id: edgeId, source: parent, target: child },
+            classes: classes.join(' '),
+          });
+          addedEdges.add(edgeId);
+        }
+      }
+
+      this.initCytoscape(elements);
+
+      // In complete graph view, dim non-ancestor nodes
+      if (!onlySearched && searchedUuids.length > 0) {
+        this.$nextTick(() => {
+          if (!this.cy) return;
+          // Find all ancestors of searched nodes
+          let ancestorIds = new Set(searchedUuids);
+          let queue = [...searchedUuids];
+          while (queue.length > 0) {
+            let uuid = queue.shift();
+            let parents = reverseAdj[uuid] || [];
+            for (let parent of parents) {
+              if (!ancestorIds.has(parent)) {
+                ancestorIds.add(parent);
+                queue.push(parent);
+              }
+            }
+          }
+          ancestorIds.add(projectId);
+          this.cy.nodes().forEach((node) => {
+            if (!ancestorIds.has(node.id()) && !node.hasClass('expand-badge')) {
+              node.addClass('dimmed');
+            }
+          });
+          this.cy.edges().forEach((edge) => {
+            if (edge.hasClass('badge-edge')) return;
+            let srcIn = ancestorIds.has(edge.source().id());
+            let tgtIn = ancestorIds.has(edge.target().id());
+            if (!srcIn || !tgtIn) {
+              edge.addClass('dimmed');
+            }
+          });
+        });
+      }
     },
-    createSearchedComponentLookupTable: function (componentUuids) {
+    async expandNode(uuid) {
+      if (!this.cy) return;
+      if (this.expandedComponents.has(uuid)) return;
+      this.expandedComponents.add(uuid);
+
+      let node = this.cy.getElementById(uuid);
+      if (node.length > 0) {
+        node.removeClass('expandable');
+      }
+      this.removeExpandBadge(uuid);
+
+      let url = `${this.$api.BASE_URL}/${this.$api.URL_DEPENDENCY_GRAPH}/component/${uuid}/directDependencies`;
+      let response = await this.axios.get(url);
+      if (!response.data || !this.cy) return;
+
+      this.cy.batch(() => {
+        for (let comp of response.data) {
+          if (!comp) continue;
+          // Add node if new
+          if (this.cy.getElementById(comp.uuid).length === 0) {
+            let hasChildren = false;
+            if (comp.directDependencies) {
+              let gc = JSON.parse(comp.directDependencies);
+              hasChildren = gc && gc.length > 0;
+            }
+            this.cy.add({
+              group: 'nodes',
+              data: {
+                id: comp.uuid,
+                label: this.createNodeLabel(comp),
+                objectType: comp.objectType || 'COMPONENT',
+                version: comp.version,
+                latestVersion:
+                  comp.latestVersion || comp.repositoryMeta?.latestVersion,
+                childCount: hasChildren
+                  ? JSON.parse(comp.directDependencies).length
+                  : 0,
+                childDeps: hasChildren ? comp.directDependencies : undefined,
+              },
+              classes: hasChildren ? 'expandable' : '',
+            });
+            if (hasChildren) {
+              this.addExpandBadge(
+                comp.uuid,
+                JSON.parse(comp.directDependencies).length,
+              );
+            }
+          }
+          // Add edge if new
+          let edgeId = 'e-' + uuid + '-' + comp.uuid;
+          if (this.cy.getElementById(edgeId).length === 0) {
+            this.cy.add({
+              group: 'edges',
+              data: { id: edgeId, source: uuid, target: comp.uuid },
+            });
+          }
+        }
+      });
+
+      this.applyOutdatedHighlighting();
+      this.runLayout();
+    },
+    applyOutdatedHighlighting() {
+      if (!this.cy) return;
+      this.cy.nodes('[objectType]').forEach((node) => {
+        let baseLabel = node.data('baseLabel') || node.data('label');
+        if (!node.data('baseLabel')) {
+          node.data('baseLabel', baseLabel);
+        }
+        if (
+          this.highlightOutdatedComponents &&
+          node.data('version') &&
+          node.data('latestVersion') &&
+          node.data('latestVersion') !== node.data('version')
+        ) {
+          node.addClass('outdated');
+          node.data(
+            'label',
+            baseLabel +
+              ' \u26a0 ' +
+              xssFilters.inHTMLData(node.data('latestVersion')),
+          );
+        } else {
+          node.removeClass('outdated');
+          node.data('label', baseLabel);
+        }
+      });
+    },
+    createSearchedComponentLookupTable(componentUuids) {
       this.searchedComponentUuids = {};
       if (componentUuids) {
         componentUuids.split('|').forEach((uuid) => {
@@ -664,105 +909,35 @@ export default {
 };
 </script>
 
-<style lang="scss">
-@import '~vue2-org-tree/dist/style.css';
-.org-tree-container {
-  background-color: inherit;
+<style scoped>
+.graph-wrapper {
+  position: relative;
+  margin-top: 5px;
 }
-.org-tree-node-label .org-tree-node-label-inner {
-  border: 1px solid #20a8d8;
-  padding: 1px 2.5px;
-  font-size: 0.675rem;
+.cy-container {
+  width: 100%;
+  height: calc(100vh - 300px);
+  min-height: 400px;
+  border: 1px solid #e0e0e0;
 }
-.org-tree-node-label:hover {
-  cursor: pointer;
+.graph-controls {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 10;
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  background: rgba(255, 255, 255, 0.85);
+  padding: 4px 6px;
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
 }
-.org-tree-node-btn {
-  background-color: #105770;
-  color: #ffffff;
-  border: none;
-  pointer-events: initial;
+.graph-controls .btn {
+  font-size: 0.75rem;
 }
-.org-tree-node-btn:hover {
-  background-color: #20a8d8;
-}
-.horizontal .org-tree-node:not(:only-child):after {
-  border-top: 1px solid #20a8d8;
-}
-.horizontal .org-tree-node:not(:first-child):before,
-.horizontal .org-tree-node:not(:last-child):after {
-  border-left: 1px solid #20a8d8;
-}
-.horizontal .org-tree-node-children:before {
-  border-top: 1px solid #20a8d8;
-}
-.horizontal.collapsable .org-tree-node.collapsed .org-tree-node-label:after {
-  border-bottom: 1px solid #20a8d8;
-}
-// Fixes white line instead of blue line to only-child nodes
-.horizontal .org-tree-node:only-child:before {
-  border-bottom-color: #20a8d8;
-}
-// Horizontal line to a node
-.horizontal .org-tree-node:after,
-.horizontal .org-tree-node:before,
-.horizontal .org-tree-node.is-leaf:before,
-.org-tree-node.is-leaf:after {
-  width: 10px;
-  height: 50%;
-}
-// Horizontal line from a node
-.horizontal .org-tree-node-children {
-  padding-left: 10px;
-}
-.horizontal.collapsable .org-tree-node.collapsed .org-tree-node-label:after,
-.horizontal .org-tree-node-children:before {
-  width: 10px;
-}
-// Margin between nodes
-.horizontal .org-tree-node,
-.horizontal .org-tree-node.collapsed,
-.horizontal .org-tree-node.is-leaf {
-  padding: 0;
-}
-.horizontal .org-tree-node-label {
-  padding: 5px 0px 5px 10px;
-}
-// Button size and position
-.horizontal .org-tree-node-btn {
-  width: 17px;
-  height: 17px;
-  margin: -9px 0px 0px 1.5px;
-}
-// Inner button vertical line
-.org-tree-node-btn:before {
-  left: 3px;
-  right: 3px;
-  top: 50%;
-}
-// Inner button horizontal line
-.org-tree-node-btn:after {
-  top: 3px;
-  bottom: 3px;
-  left: 50%;
-}
-// Fix wrong pointer
-.org-tree-node-label:hover {
-  cursor: default;
-}
-.org-tree-node-label .org-tree-node-label-inner {
-  cursor: pointer;
-}
-// Enable dragging nodes without scrolling by dragging
-.org-tree-node-label-inner {
-  pointer-events: initial;
-}
-// Enable scrolling by dragging in empty space between nodes
-.org-tree-node-label {
-  pointer-events: none;
-}
-.org-tree-node-label-inner.clickable-node.searched {
-  border: 2.5px solid #4dbd74;
-  font-weight: bold;
+.control-group {
+  display: flex;
+  gap: 2px;
 }
 </style>
